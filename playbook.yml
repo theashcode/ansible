@@ -1,0 +1,53 @@
+---
+  - hosts: all                                                                                    # All servers for Vagrant
+    become: yes                                                                                   # Become Root
+    tasks:
+      - name: Upgrade all packages for Debian and Ubuntu                                          # The name of the task you want to perform
+        apt:
+          name: "*"                                                                               # Update all (*) packages
+          state: "latest"
+          update_cache: yes                                                                       # Run the equivalent of "apt-get update" as a separate step
+          force_apt_get: yes                                                                      # Force Ansible to use apt-get
+
+      - name: Installing the packages necessary to build Python 3.8 source
+        apt:
+          name:                                                                                   # Listing the required packages which need to be installed in a list format
+            - build-essential
+            - zlib1g-dev
+            - libncurses5-dev
+            - libgdbm-dev
+            - libnss3-dev
+            - libssl-dev
+            - libsqlite3-dev
+            - libreadline-dev
+            - libffi-dev
+            - curl
+            - libbz2-dev
+          state: present                                                                          # This means installed in Ansible terms
+        #when: ansible_os_family == 'Debian'                                                      # Limit this to just Debian or Ubuntu systems for this task
+
+      - name: Download the latest release source code from the Python download page   
+        get_url:                                                                                  # wget / curl command for ansible
+          url: https://www.python.org/ftp/python/3.8.2/Python-3.8.2.tar.xz
+          dest: /opt
+
+      - name: Unarchive a file                                                                    # Unzip file on the remote computer which was downloaded
+        unarchive:
+          src: /opt/Python-3.8.2.tar.xz
+          dest: /opt
+          remote_src: yes
+        become: yes
+
+      - name: Run Python configure script & build                                                 # Make sure all deps are present and start the build
+        command: "{{ item }}"                                                                     # Making use of a dictionary
+        args:
+          chdir: /opt/Python-3.8.2 
+        with_items:                 
+          - ./configure --enable-optimizations
+          - make -j 2                                                                             # Build using 2 cores, based on server. Use nproc to view CPUs on target
+          - make altinstall
+        become: yes
+
+      - name: Verify version installed on server
+        shell: python --version 3.8>&1
+        register: python_installed
